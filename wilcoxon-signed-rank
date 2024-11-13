@@ -1,0 +1,108 @@
+// Mapping function with parameterized mapping
+function mapOrdinalToNumerical(value, mapping) {
+  if (mapping.hasOwnProperty(value)) {
+    return mapping[value];
+  } else {
+    throw new Error(`Invalid ordinal value in ${mapping}: ` + value);
+  }
+}
+
+// Function to convert a range of ordinal data to numerical data
+function convertOrdinalRange(range, mapping) {
+  // Check if mapping is undefined or null
+  if (mapping == null) {
+    throw new Error('Mapping object is undefined or null.');
+  }
+  
+  // Check if mapping is empty
+  if (Object.keys(mapping).length === 0) {
+    throw new Error('Mapping object is empty.');
+  }
+  
+  return range.map(row => console.log(row));
+}
+
+// Function to check if a range is numerical
+function isNumericalRange(range) {
+  return range.every(row => row.every(value => typeof value === 'number'));
+}
+
+// Wilcoxon signed-rank test function that handles both ordinal and numerical data
+function WILCOXONTEST(sample1, sample2, mapping) {
+  var data1, data2;
+  
+  // Check if sample1 and sample2 are numerical or ordinal
+  if (isNumericalRange(sample1) && isNumericalRange(sample2)) {
+    data1 = sample1.flat();
+    data2 = sample2.flat();
+  } else {
+    data1 = convertOrdinalRange(sample1, mapping).flat();
+    data2 = convertOrdinalRange(sample2, mapping).flat();
+  }
+  
+  // Ensure both samples have the same length
+  if (data1.length !== data2.length) {
+    throw new Error("Both samples must have the same number of rows.");
+  }
+  
+  var differences = [];
+  for (var i = 0; i < data1.length; i++) {
+    differences.push(data1[i] - data2[i]);
+  }
+  
+  // Remove zero differences
+  differences = differences.filter(diff => diff !== 0);
+  
+  // Rank the absolute differences
+  var absDiffs = differences.map(Math.abs);
+  var ranks = rank(absDiffs);
+  
+  // Calculate signed ranks
+  var signedRanks = differences.map((diff, i) => diff > 0 ? ranks[i] : -ranks[i]);
+  
+  // Sum positive and negative ranks
+  var Wplus = signedRanks.filter(rank => rank > 0).reduce((a, b) => a + b, 0);
+  var Wminus = Math.abs(signedRanks.filter(rank => rank < 0).reduce((a, b) => a + b, 0));
+  
+  // Test statistic
+  var W = Math.min(Wplus, Wminus);
+  
+  // Calculate p-value using normal approximation
+  var n = differences.length;
+  var meanW = n * (n + 1) / 4;
+  var sdW = Math.sqrt(n * (n + 1) * (2 * n + 1) / 24);
+  var z = (W - meanW) / sdW;
+  var pValue = 2 * (1 - normalCdf(Math.abs(z)));
+  
+  return { W: W, pValue: pValue };
+}
+
+function rank(arr) {
+  var sorted = arr.slice().sort((a, b) => a - b);
+  var ranks = arr.map(v => sorted.indexOf(v) + 1);
+  return ranks;
+}
+
+function normalCdf(x) {
+  return (1.0 + erf(x / Math.sqrt(2.0))) / 2.0;
+}
+
+function erf(x) {
+  // Save the sign of x
+  var sign = (x >= 0) ? 1 : -1;
+  x = Math.abs(x);
+
+  // Constants
+  var a1 =  0.254829592;
+  var a2 = -0.284496736;
+  var a3 =  1.421413741;
+  var a4 = -1.453152027;
+  var a5 =  1.061405429;
+  var p  =  0.3275911;
+
+  // A&S formula 7.1.26
+  var t = 1.0 / (1.0 + p * x);
+  var y = 1.0 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * Math.exp(-x * x);
+
+  return sign * y; // erf(-x) = -erf(x)
+}
